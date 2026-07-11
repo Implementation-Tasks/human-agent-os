@@ -1,0 +1,120 @@
+{
+  "task_id": "run_9cf87eec",
+  "task": "Reconcile two conflicting vendor invoices (INV-88 says $12,400; the PO says $9,900) and recommend a payment amount.",
+  "route": "agent_only",
+  "outcome": "escalated_to_human",
+  "final_output": "[Awaiting human] Task escalated to a human owner for completion/approval. Reason: Improved, but an unresolved high-exposure payment discrepancy must be decided by a human.",
+  "retries": 1,
+  "confidence": 0.5,
+  "trace": [
+    {
+      "step": "route",
+      "title": "Router decision",
+      "detail": {
+        "route": "agent_only",
+        "reasoning": "Routine reconciliation; low-risk if amounts match.",
+        "fallback": false
+      },
+      "ts": 1783812805.14
+    },
+    {
+      "step": "draft",
+      "title": "Agent draft",
+      "detail": {
+        "attempt": 0,
+        "output": "Recommend paying $12,400 as invoiced by the vendor."
+      },
+      "ts": 1783812805.14
+    },
+    {
+      "step": "review",
+      "title": "Reviewer critique (attempt 0)",
+      "detail": {
+        "passed": false,
+        "confidence": 0.3,
+        "scores": {
+          "correctness": 0.3,
+          "completeness": 0.4,
+          "risk_safety": 0.3
+        },
+        "issues": [
+          {
+            "dimension": "correctness",
+            "severity": "high",
+            "detail": "Recommends paying the invoice ($12,400) over the PO ($9,900) with no reconciliation of the $2,500 discrepancy.",
+            "fix_hint": "Explain the discrepancy; do not recommend overpaying beyond the PO without approval."
+          }
+        ],
+        "verdict_reason": "High-severity: recommends a $2,500 overpayment above the PO with no justification.",
+        "fallback": false
+      },
+      "ts": 1783812805.14
+    },
+    {
+      "step": "reroute",
+      "title": "Reroute to agent with critique (attempt 1)",
+      "detail": {
+        "issues": [
+          {
+            "dimension": "correctness",
+            "severity": "high",
+            "detail": "Recommends paying the invoice ($12,400) over the PO ($9,900) with no reconciliation of the $2,500 discrepancy.",
+            "fix_hint": "Explain the discrepancy; do not recommend overpaying beyond the PO without approval."
+          }
+        ]
+      },
+      "ts": 1783812805.14
+    },
+    {
+      "step": "draft",
+      "title": "Agent revised draft",
+      "detail": {
+        "attempt": 1,
+        "output": "The invoice ($12,400) exceeds the PO ($9,900) by $2,500. I can't determine from the documents whether the extra covers approved scope. Recommend paying the PO amount ($9,900) and holding $2,500 pending clarification."
+      },
+      "ts": 1783812805.14
+    },
+    {
+      "step": "review",
+      "title": "Reviewer critique (attempt 1)",
+      "detail": {
+        "passed": false,
+        "confidence": 0.5,
+        "scores": {
+          "correctness": 0.65,
+          "completeness": 0.6,
+          "risk_safety": 0.5
+        },
+        "issues": [
+          {
+            "dimension": "risk_safety",
+            "severity": "high",
+            "detail": "Financial commitment with an unresolved $2,500 discrepancy and high exposure; needs human authority.",
+            "fix_hint": "Escalate to a human approver with the discrepancy summary."
+          }
+        ],
+        "verdict_reason": "Improved, but an unresolved high-exposure payment discrepancy must be decided by a human.",
+        "fallback": false
+      },
+      "ts": 1783812805.141
+    },
+    {
+      "step": "escalate",
+      "title": "Reviewer escalated to a human",
+      "detail": {
+        "reason": "Improved, but an unresolved high-exposure payment discrepancy must be decided by a human.",
+        "confidence": 0.5,
+        "retries_used": 1
+      },
+      "ts": 1783812805.141
+    }
+  ],
+  "metrics": {
+    "outcome": "escalated_to_human",
+    "auto_completed": false,
+    "escalated_to_human": true,
+    "retries": 1,
+    "confidence": 0.5,
+    "steps": 7
+  }
+}

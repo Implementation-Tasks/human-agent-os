@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Human-Agent OS — Accountability Trace</title>
+  <meta name="description"
+    content="Live trace visualization of the Human-Agent OS review loop: route → draft → critique → reroute/escalate. Every decision, made visible." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <style>
+    /* ─── Design Tokens ─────────────────────────────────────── */
+    :root {
+      --bg: #080c14;
+      --bg-panel: #0d1421;
+      --bg-card: #111827;
+      --bg-card-hover: #151e2e;
+      --border: rgba(255, 255, 255, .07);
+      --border-glow: rgba(99, 179, 237, .25);
+
+      --text-primary: #f0f4ff;
+      --text-secondary: #8899bb;
+      --text-muted: #4a5a7a;
+
+      --blue: #3b82f6;
+      --cyan: #22d3ee;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --orange: #f97316;
+      --red: #ef4444;
+      --purple: #8b5cf6;
+
+      --radius: 14px;
+      --radius-sm: 8px;
+      --transition: .25s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(59, 130, 246, .04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 130, 246, .04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header {
+      position: relative;
+      z-index: 10;
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(8, 12, 20, .95) 0%, rgba(8, 12, 20, .7) 100%);
+      backdrop-filter: blur(12px);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-text {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -.3px;
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 1px;
+    }
+
+    .header-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(16, 185, 129, .1);
+      border: 1px solid rgba(16, 185, 129, .3);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .header-badge::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: .4;
+        transform: scale(.7);
+      }
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 32px 40px 60px;
+    }
+
+    .scenario-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .scenario-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .scenario-btn {
+      padding: 8px 18px;
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: inherit;
+    }
+
+    .scenario-btn:hover {
+      border-color: var(--blue);
+      color: var(--text-primary);
+      background: rgba(59, 130, 246, .1);
+    }
+
+    .scenario-btn.active {
+      border-color: var(--blue);
+      background: rgba(59, 130, 246, .18);
+      color: #93c5fd;
+      font-weight: 600;
+    }
+
+    .scenario-btn.escalate-btn.active {
+      border-color: var(--red);
+      background: rgba(239, 68, 68, .15);
+      color: #fca5a5;
+    }
+
+    .scenario-btn.human-btn.active {
+      border-color: var(--cyan);
+      background: rgba(34, 211, 238, .1);
+      color: #67e8f9;
+    }
+
+    .scenario-btn.live-btn.active {
+      border-color: var(--purple);
+      background: rgba(139, 92, 246, .15);
+      color: #c4b5fd;
+    }
+
+    .live-bar {
+      display: none;
+      gap: 10px;
+      margin-bottom: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .live-bar.visible {
+      display: flex;
+    }
+
+    .live-input {
+      flex: 1;
+      min-width: 260px;
+      padding: 9px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      transition: var(--transition);
+    }
+
+    .live-input:focus {
+      outline: none;
+      border-color: var(--blue);
+      background: rgba(59, 130, 246, .06);
+    }
+
+    .live-run-btn {
+      padding: 9px 20px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: var(--transition);
+    }
+
+    .live-run-btn:hover {
+      opacity: .88;
+      transform: translateY(-1px);
+    }
+
+    .live-run-btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      transition: var(--transition);
+    }
+
+    .metric-card:hover {
+      border-color: var(--border-glow);
+      background: var(--bg-card-hover);
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -.5px;
+    }
+
+    .autocomplete-bar-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .autocomplete-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .bar-track {
+      flex: 1;
+      height: 8px;
+      background: rgba(239, 68, 68, .2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green), var(--cyan));
+      border-radius: 4px;
+      transition: width 1s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .bar-pcts {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .canvas {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 980px) {
+      .canvas {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .trace-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .trace-step {
+      display: flex;
+      gap: 0;
+      animation: stepIn .4s ease both;
+      animation-delay: calc(var(--idx) * 110ms);
+    }
+
+    @keyframes stepIn {
+      from {
+        opacity: 0;
+        transform: translateX(-18px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .step-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 48px;
+      flex-shrink: 0;
+    }
+
+    .step-dot {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+      border: 2px solid transparent;
+      transition: var(--transition);
+    }
+
+    .step-line {
+      width: 2px;
+      flex: 1;
+      min-height: 16px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
+    .trace-step:last-child .step-line {
+      display: none;
+    }
+
+    .step-dot.route {
+      background: rgba(59, 130, 246, .15);
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .step-dot.draft {
+      background: rgba(139, 92, 246, .15);
+      border-color: var(--purple);
+      color: var(--purple);
+    }
+
+    .step-dot.review-pass {
+      background: rgba(16, 185, 129, .15);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .step-dot.review-fail {
+      background: rgba(239, 68, 68, .15);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .step-dot.reroute {
+      background: rgba(245, 158, 11, .15);
+      border-color: var(--yellow);
+      color: var(--yellow);
+    }
+
+    .step-dot.escalate {
+      background: rgba(239, 68, 68, .2);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .step-dot.human {
+      background: rgba(34, 211, 238, .12);
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    .step-dot.human-confirm {
+      background: rgba(16, 185, 129, .15);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .step-card-wrap {
+      flex: 1;
+      padding-bottom: 18px;
+    }
+
+    .step-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: var(--transition);
+    }
+
+    .step-card:hover {
+      border-color: rgba(255, 255, 255, .13);
+      background: var(--bg-card-hover);
+    }
+
+    .step-card.is-escalate {
+      border-color: rgba(239, 68, 68, .35);
+      box-shadow: 0 0 30px rgba(239, 68, 68, .12), 0 4px 20px rgba(0, 0, 0, .4);
+    }
+
+    .step-card.is-escalate .step-header {
+      background: rgba(239, 68, 68, .06);
+    }
+
+    .step-card.is-human {
+      border-color: rgba(34, 211, 238, .25);
+    }
+
+    .step-card.is-human-confirm {
+      border-color: rgba(16, 185, 129, .3);
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      gap: 10px;
+    }
+
+    .step-title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-chip {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .chip-route {
+      background: rgba(59, 130, 246, .2);
+      color: #93c5fd;
+    }
+
+    .chip-draft {
+      background: rgba(139, 92, 246, .2);
+      color: #c4b5fd;
+    }
+
+    .chip-review-pass {
+      background: rgba(16, 185, 129, .2);
+      color: #6ee7b7;
+    }
+
+    .chip-review-fail {
+      background: rgba(239, 68, 68, .2);
+      color: #fca5a5;
+    }
+
+    .chip-reroute {
+      background: rgba(245, 158, 11, .2);
+      color: #fde68a;
+    }
+
+    .chip-escalate {
+      background: rgba(239, 68, 68, .25);
+      color: #fca5a5;
+    }
+
+    .chip-human {
+      background: rgba(34, 211, 238, .15);
+      color: #67e8f9;
+    }
+
+    .chip-human-confirm {
+      background: rgba(16, 185, 129, .2);
+      color: #6ee7b7;
+    }
+
+    .step-toggle {
+      font-size: 11px;
+      color: var(--text-muted);
+      transition: transform .2s;
+    }
+
+    .step-toggle.open {
+      transform: rotate(180deg);
+    }
+
+    .step-body {
+      padding: 16px 18px;
+      display: none;
+    }
+
+    .step-body.open {
+      display: block;
+    }
+
+    .draft-text {
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      font-style: italic;
+      border-left: 3px solid var(--purple);
+      padding-left: 12px;
+    }
+
+    .verdict-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .verdict-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+
+    .verdict-badge.pass {
+      background: rgba(16, 185, 129, .15);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, .3);
+    }
+
+    .verdict-badge.fail {
+      background: rgba(239, 68, 68, .15);
+      color: var(--red);
+      border: 1px solid rgba(239, 68, 68, .3);
+    }
+
+    .verdict-reason {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    .confidence-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .conf-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .conf-track {
+      flex: 1;
+      height: 6px;
+      background: rgba(255, 255, 255, .07);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .conf-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 1s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    .conf-val {
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .scores-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .score-pill {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid var(--border);
+      min-width: 80px;
+    }
+
+    .score-pill-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+    .score-pill-val {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .issues-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .issue-card {
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      border-left: 3px solid;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, .03);
+    }
+
+    .issue-card.high {
+      border-color: var(--red);
+      background: rgba(239, 68, 68, .06);
+    }
+
+    .issue-card.medium {
+      border-color: var(--yellow);
+      background: rgba(245, 158, 11, .05);
+    }
+
+    .issue-card.low {
+      border-color: var(--green);
+      background: rgba(16, 185, 129, .05);
+    }
+
+    .issue-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .sev-badge {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .sev-badge.high {
+      background: rgba(239, 68, 68, .2);
+      color: var(--red);
+    }
+
+    .sev-badge.medium {
+      background: rgba(245, 158, 11, .2);
+      color: var(--yellow);
+    }
+
+    .sev-badge.low {
+      background: rgba(16, 185, 129, .2);
+      color: var(--green);
+    }
+
+    .dim-badge {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: capitalize;
+    }
+
+    .issue-detail {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    .issue-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    .route-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .route-tag {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .route-tag.agent_only {
+      background: rgba(139, 92, 246, .2);
+      color: #c4b5fd;
+    }
+
+    .route-tag.mixed {
+      background: rgba(245, 158, 11, .2);
+      color: #fde68a;
+    }
+
+    .route-tag.human_only {
+      background: rgba(34, 211, 238, .15);
+      color: #67e8f9;
+    }
+
+    .route-reason {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .reroute-issues {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .reroute-issue-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      background: rgba(245, 158, 11, .07);
+      border: 1px solid rgba(245, 158, 11, .2);
+      border-radius: 6px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+    }
+
+    .panel-body {
+      padding: 18px;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .task-text {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+
+    .task-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .task-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .task-meta-key {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .task-meta-val {
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .tag-id {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .outcome-display {
+      text-align: center;
+      padding: 8px 0;
+    }
+
+    .outcome-icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+
+    .outcome-label {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .outcome-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .final-text {
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      border-left: 3px solid var(--border);
+      padding-left: 12px;
+    }
+
+    .error-toast {
+      display: none;
+      padding: 12px 18px;
+      background: rgba(239, 68, 68, .15);
+      border: 1px solid rgba(239, 68, 68, .3);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--red);
+      margin-bottom: 16px;
+    }
+
+    .error-toast.visible {
+      display: block;
+    }
+
+    .empty-state {
+      grid-column: 1/-1;
+      text-align: center;
+      padding: 60px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .empty-state strong {
+      color: var(--text-secondary);
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: rgba(255, 255, 255, .06);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🔍</div>
+      <div>
+        <div class="logo-text">Human-Agent OS</div>
+        <div class="logo-sub">Accountability Trace Visualizer</div>
+      </div>
+    </div>
+    <div class="header-badge">Accountability Loop</div>
+  </header>
+
+  <main>
+    <div class="scenario-bar">
+      <span class="scenario-label">Scenario</span>
+      <button class="scenario-btn" id="btn-clean_pass" onclick="loadScenario('clean_pass')">✅ Clean Pass</button>
+      <button class="scenario-btn" id="btn-reroute_pass" onclick="loadScenario('reroute_pass')">🔄 Reroute &rarr;
+        Pass</button>
+      <button class="scenario-btn escalate-btn" id="btn-escalate" onclick="loadScenario('escalate')">⚠️
+        Escalate</button>
+      <button class="scenario-btn human-btn" id="btn-human_only" onclick="loadScenario('human_only')">👤 Human
+        Only</button>
+      <button class="scenario-btn live-btn" id="btn-live" onclick="toggleLive()">⚡ Live POST /run</button>
+    </div>
+
+    <div class="live-bar" id="live-bar">
+      <input class="live-input" id="live-task" placeholder="e.g. Reconcile invoices INV-88 $12,400 vs PO $9,900…" />
+      <select class="live-input" id="live-risk" style="max-width:130px">
+        <option value="low">Risk: low</option>
+        <option value="medium" selected>Risk: medium</option>
+        <option value="high">Risk: high</option>
+      </select>
+      <select class="live-input" id="live-exposure" style="max-width:150px">
+        <option value="low">Exposure: low</option>
+        <option value="medium" selected>Exposure: medium</option>
+        <option value="high">Exposure: high</option>
+      </select>
+      <button class="live-run-btn" id="live-run" onclick="runLive()">Run &rarr;</button>
+    </div>
+
+    <div class="error-toast" id="error-toast"></div>
+
+    <div class="metric-strip">
+      <div class="metric-card">
+        <div class="metric-label">Outcome</div>
+        <div class="metric-value" id="m-outcome" style="font-size:18px">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Confidence</div>
+        <div class="metric-value" id="m-confidence">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Retries</div>
+        <div class="metric-value" id="m-retries">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Steps</div>
+        <div class="metric-value" id="m-steps">—</div>
+      </div>
+      <div class="autocomplete-bar-wrap">
+        <span class="autocomplete-label">% Auto-completed vs Escalated</span>
+        <div class="bar-track">
+          <div class="bar-fill" id="autocomplete-bar" style="width:0%"></div>
+        </div>
+        <span class="bar-pcts" id="bar-pcts" style="color:var(--text-muted)">—</span>
+      </div>
+    </div>
+
+    <div class="canvas" id="canvas">
+      <div class="empty-state"><strong>Select a scenario above</strong> to visualize the trace.</div>
+    </div>
+  </main>
+
+  <script>
+    /* ── Sample data (exact JSON from sample_response_*.json) ── */
+    const SAMPLES = {};
+
+    SAMPLES.clean_pass = { "task_id": "run_2e7956a6", "task": "Draft a first-pass summary of this week's 42 support tickets, grouped by theme.", "route": "agent_only", "outcome": "auto_completed", "final_output": "Summary of 42 tickets this week. Themes: Login/OTP (15), Payment failures (11), Feature requests (9), Bugs (7). Sentiment mostly neutral; 3 flagged urgent (payment double-charge).", "retries": 0, "confidence": 0.9, "trace": [{ "step": "route", "title": "Router decision", "detail": { "route": "agent_only", "reasoning": "Low-risk, reversible, internal summarization task.", "fallback": false }, "ts": 1783791522.547 }, { "step": "draft", "title": "Agent draft", "detail": { "attempt": 0, "output": "Summary of 42 tickets this week. Themes: Login/OTP (15), Payment failures (11), Feature requests (9), Bugs (7). Sentiment mostly neutral; 3 flagged urgent (payment double-charge)." }, "ts": 1783791522.547 }, { "step": "review", "title": "Reviewer critique (attempt 0)", "detail": { "passed": true, "confidence": 0.9, "scores": { "correctness": 0.9, "completeness": 0.85, "risk_safety": 0.95 }, "issues": [], "verdict_reason": "Accurate, complete grouping with no risk; safe to auto-complete.", "fallback": false }, "ts": 1783791522.547 }], "metrics": { "outcome": "auto_completed", "auto_completed": true, "escalated_to_human": false, "retries": 0, "confidence": 0.9, "steps": 3 } };
+
+    SAMPLES.reroute_pass = { "task_id": "run_41354764", "task": "Draft a customer response approving a refund for order #A-2231 ($200 dispute).", "route": "mixed", "outcome": "auto_completed", "final_output": "Hi, thanks for reaching out about order #A-2231. I've confirmed it's within our 14-day return window with no prior refunds, so you're eligible. Your $200 refund is approved and will post to your original payment method in 5-7 business days. (Pending final sign-off.)", "retries": 1, "confidence": 0.86, "trace": [{ "step": "route", "title": "Router decision", "detail": { "route": "mixed", "reasoning": "Customer-facing with money involved; agent drafts, human confirms.", "fallback": false }, "ts": 1783791522.549 }, { "step": "draft", "title": "Agent draft", "detail": { "attempt": 0, "output": "Hi, thanks for reaching out. We've approved your $200 refund for order #A-2231. It'll appear in 5-7 days. Sorry for the trouble!" }, "ts": 1783791522.549 }, { "step": "review", "title": "Reviewer critique (attempt 0)", "detail": { "passed": false, "confidence": 0.55, "scores": { "correctness": 0.6, "completeness": 0.4, "risk_safety": 0.6 }, "issues": [{ "dimension": "completeness", "severity": "medium", "detail": "Refund approved without confirming it meets the 14-day return policy or checking prior refund history.", "fix_hint": "Confirm eligibility against the return policy before approving." }, { "dimension": "risk_safety", "severity": "medium", "detail": "Commits to a refund amount and timeline with no policy citation.", "fix_hint": "Reference the refund policy and mark for human sign-off." }], "verdict_reason": "Missing policy/eligibility check before committing a refund.", "fallback": false }, "ts": 1783791522.549 }, { "step": "reroute", "title": "Reroute to agent with critique (attempt 1)", "detail": { "issues": [{ "dimension": "completeness", "severity": "medium", "detail": "Refund approved without confirming it meets the 14-day return policy or checking prior refund history.", "fix_hint": "Confirm eligibility against the return policy before approving." }, { "dimension": "risk_safety", "severity": "medium", "detail": "Commits to a refund amount and timeline with no policy citation.", "fix_hint": "Reference the refund policy and mark for human sign-off." }] }, "ts": 1783791522.549 }, { "step": "draft", "title": "Agent revised draft", "detail": { "attempt": 1, "output": "Hi, thanks for reaching out about order #A-2231. I've confirmed it's within our 14-day return window with no prior refunds, so you're eligible. Your $200 refund is approved and will post to your original payment method in 5-7 business days. (Pending final sign-off.)" }, "ts": 1783791522.549 }, { "step": "review", "title": "Reviewer critique (attempt 1)", "detail": { "passed": true, "confidence": 0.86, "scores": { "correctness": 0.9, "completeness": 0.85, "risk_safety": 0.85 }, "issues": [], "verdict_reason": "Eligibility confirmed and policy cited; appropriate for human confirmation on the mixed path.", "fallback": false }, "ts": 1783791522.549 }, { "step": "human_confirm", "title": "Human confirmation (mixed path)", "detail": { "note": "Agent output passed review; a human signs off before it ships.", "confidence": 0.86 }, "ts": 1783791522.549 }], "metrics": { "outcome": "auto_completed", "auto_completed": true, "escalated_to_human": false, "retries": 1, "confidence": 0.86, "steps": 7 } };
+
+    SAMPLES.escalate = { "task_id": "run_c7d325ed", "task": "Reconcile two conflicting vendor invoices (INV-88 says $12,400; the PO says $9,900) and recommend a payment amount.", "route": "agent_only", "outcome": "escalated_to_human", "final_output": "[Awaiting human] Task escalated to a human owner for completion/approval. Reason: Improved, but an unresolved high-exposure payment discrepancy must be decided by a human.", "retries": 1, "confidence": 0.5, "trace": [{ "step": "route", "title": "Router decision", "detail": { "route": "agent_only", "reasoning": "Routine reconciliation; low-risk if amounts match.", "fallback": false }, "ts": 1783791522.55 }, { "step": "draft", "title": "Agent draft", "detail": { "attempt": 0, "output": "Recommend paying $12,400 as invoiced by the vendor." }, "ts": 1783791522.55 }, { "step": "review", "title": "Reviewer critique (attempt 0)", "detail": { "passed": false, "confidence": 0.3, "scores": { "correctness": 0.3, "completeness": 0.4, "risk_safety": 0.3 }, "issues": [{ "dimension": "correctness", "severity": "high", "detail": "Recommends paying the invoice ($12,400) over the PO ($9,900) with no reconciliation of the $2,500 discrepancy.", "fix_hint": "Explain the discrepancy; do not recommend overpaying beyond the PO without approval." }], "verdict_reason": "High-severity: recommends a $2,500 overpayment above the PO with no justification.", "fallback": false }, "ts": 1783791522.55 }, { "step": "reroute", "title": "Reroute to agent with critique (attempt 1)", "detail": { "issues": [{ "dimension": "correctness", "severity": "high", "detail": "Recommends paying the invoice ($12,400) over the PO ($9,900) with no reconciliation of the $2,500 discrepancy.", "fix_hint": "Explain the discrepancy; do not recommend overpaying beyond the PO without approval." }] }, "ts": 1783791522.55 }, { "step": "draft", "title": "Agent revised draft", "detail": { "attempt": 1, "output": "The invoice ($12,400) exceeds the PO ($9,900) by $2,500. I can't determine from the documents whether the extra covers approved scope. Recommend paying the PO amount ($9,900) and holding $2,500 pending clarification." }, "ts": 1783791522.55 }, { "step": "review", "title": "Reviewer critique (attempt 1)", "detail": { "passed": false, "confidence": 0.5, "scores": { "correctness": 0.65, "completeness": 0.6, "risk_safety": 0.5 }, "issues": [{ "dimension": "risk_safety", "severity": "high", "detail": "Financial commitment with an unresolved $2,500 discrepancy and high exposure; needs human authority.", "fix_hint": "Escalate to a human approver with the discrepancy summary." }], "verdict_reason": "Improved, but an unresolved high-exposure payment discrepancy must be decided by a human.", "fallback": false }, "ts": 1783791522.55 }, { "step": "escalate", "title": "Reviewer escalated to a human", "detail": { "reason": "Improved, but an unresolved high-exposure payment discrepancy must be decided by a human.", "confidence": 0.5, "retries_used": 1 }, "ts": 1783791522.55 }], "metrics": { "outcome": "escalated_to_human", "auto_completed": false, "escalated_to_human": true, "retries": 1, "confidence": 0.5, "steps": 7 } };
+
+    SAMPLES.human_only = { "task_id": "run_b2e6cdf8", "task": "Approve a wire transfer of $2,000,000 to a new beneficiary account.", "route": "human_only", "outcome": "human_only", "final_output": "[Awaiting human] Task routed to a human owner for completion/approval.", "retries": 0, "confidence": 1.0, "trace": [{ "step": "route", "title": "Router decision", "detail": { "route": "human_only", "reasoning": "Irreversible, high-value transfer to a new beneficiary; must be human-approved.", "fallback": false }, "ts": 1783791522.551 }, { "step": "human", "title": "Routed to a human (accountable path)", "detail": { "note": "High-stakes/irreversible - no AI action taken." }, "ts": 1783791522.551 }], "metrics": { "outcome": "human_only", "auto_completed": false, "escalated_to_human": false, "retries": 0, "confidence": 1.0, "steps": 2 } };
+
+    /* ── Helpers ── */
+    function confColor(v) {
+      if (v >= 0.8) return 'var(--green)';
+      if (v >= 0.6) return 'var(--yellow)';
+      if (v >= 0.4) return 'var(--orange)';
+      return 'var(--red)';
+    }
+    function outcomeInfo(o) {
+      return {
+        auto_completed: { icon: '✅', label: 'Auto-completed', sub: 'Agent passed review', color: 'var(--green)' },
+        escalated_to_human: { icon: '⚠️', label: 'Escalated', sub: 'Handed to a human for decision', color: 'var(--red)' },
+        human_only: { icon: '👤', label: 'Human-only', sub: 'Router sent directly to human', color: 'var(--cyan)' },
+      }[o] || { icon: '❓', label: o, sub: '', color: 'var(--text-muted)' };
+    }
+    function e(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function dotClass(step, detail) {
+      if (step === 'review') return detail && detail.passed ? 'review-pass' : 'review-fail';
+      if (step === 'human_confirm') return 'human-confirm';
+      return step;
+    }
+    function cardExtra(step) {
+      if (step === 'escalate') return 'is-escalate';
+      if (step === 'human') return 'is-human';
+      if (step === 'human_confirm') return 'is-human-confirm';
+      return '';
+    }
+    function chipCls(step, detail) {
+      if (step === 'review') return detail && detail.passed ? 'chip-review-pass' : 'chip-review-fail';
+      const m = {
+        route: 'chip-route', draft: 'chip-draft', reroute: 'chip-reroute',
+        escalate: 'chip-escalate', human: 'chip-human', human_confirm: 'chip-human-confirm'
+      };
+      return m[step] || '';
+    }
+    function chipLbl(step, detail) {
+      if (step === 'review') return detail && detail.passed ? 'PASS ✓' : 'FAIL ✗';
+      const m = {
+        route: 'ROUTE', draft: 'DRAFT', reroute: 'REROUTE ↺',
+        escalate: '⚠ ESCALATE', human: 'HUMAN', human_confirm: 'HUMAN CONFIRM ✅'
+      };
+      return m[step] || step.toUpperCase();
+    }
+    function stepIcon(step, detail) {
+      const m = { route: '⤴', draft: '✎', reroute: '↺', escalate: '⚠', human: '👤', human_confirm: '✅' };
+      if (step === 'review') return detail && detail.passed ? '✓' : '✗';
+      return m[step] || '•';
+    }
+
+    /* ── Step body renderers ── */
+    function renderRoute(d) {
+      return `<div class="route-row">
+    <span class="route-tag ${e(d.route)}">${e(d.route.replace('_', ' '))}</span>
+    <span class="route-reason">${e(d.reasoning || '')}</span>
+  </div>${d.fallback ? '<div style="margin-top:8px;font-size:11px;color:var(--yellow)">⚠ Fallback classification used</div>' : ''}`;
+    }
+    function renderDraft(d) {
+      return `<div class="draft-text">"${e(d.output || '')}"</div>`;
+    }
+    function renderReview(d) {
+      const conf = d.confidence ?? 0;
+      const scores = Object.entries(d.scores || {}).map(([k, v]) =>
+        `<div class="score-pill"><div class="score-pill-label">${e(k.replace('_', ' '))}</div><div class="score-pill-val" style="color:${confColor(v)}">${Math.round(v * 100)}%</div></div>`
+      ).join('');
+      const issues = (d.issues || []).map(i =>
+        `<div class="issue-card ${e(i.severity)}">
+      <div class="issue-header"><span class="sev-badge ${e(i.severity)}">${e(i.severity)}</span><span class="dim-badge">${e(i.dimension)}</span></div>
+      <div class="issue-detail">${e(i.detail)}</div>
+      ${i.fix_hint ? `<div class="issue-hint">💡 ${e(i.fix_hint)}</div>` : ''}
+    </div>`
+      ).join('');
+      return `
+    <div class="verdict-row">
+      <div class="verdict-badge ${d.passed ? 'pass' : 'fail'}">${d.passed ? '✓ PASS' : '✗ FAIL'}</div>
+      <div class="verdict-reason">${e(d.verdict_reason || '')}</div>
+    </div>
+    <div class="confidence-row">
+      <span class="conf-label">Confidence</span>
+      <div class="conf-track"><div class="conf-fill" style="width:${conf * 100}%;background:${confColor(conf)}"></div></div>
+      <span class="conf-val" style="color:${confColor(conf)}">${Math.round(conf * 100)}%</span>
+    </div>
+    ${scores ? `<div class="scores-row">${scores}</div>` : ''}
+    ${issues ? `<div class="issues-title">Issues Found</div>${issues}` : '<div style="font-size:12px;color:var(--green);margin-bottom:12px;">✓ No issues found</div>'}
+    ${d.fallback ? '<div style="font-size:11px;color:var(--yellow);margin-top:6px;">⚠ Fallback critique used — API failure</div>' : ''}`;
+    }
+    function renderReroute(d) {
+      const pills = (d.issues || []).map(i =>
+        `<div class="reroute-issue-pill"><span class="sev-badge ${e(i.severity)}">${e(i.severity)}</span><span style="color:var(--text-secondary);font-size:12px;">${e(i.detail)}</span></div>`
+      ).join('');
+      return `<div style="font-size:12px;color:var(--yellow);margin-bottom:10px;">↺ Agent sent back for revision with the critique below</div><div class="reroute-issues">${pills}</div>`;
+    }
+    function renderEscalate(d) {
+      return `<div class="escalate-block">
+    <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px;">⚠ Reviewer escalated — AI will not decide alone</div>
+    <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px;">${e(d.reason || '')}</div>
+    <div style="display:flex;gap:14px;">
+      <div style="font-size:12px;color:var(--text-muted)">Confidence: <strong style="color:var(--red)">${Math.round((d.confidence ?? 0) * 100)}%</strong></div>
+      <div style="font-size:12px;color:var(--text-muted)">Retries used: <strong style="color:var(--red)">${d.retries_used ?? '—'}</strong></div>
+    </div>
+  </div>`;
+    }
+    function renderHuman(d) {
+      return `<div style="font-size:13px;color:var(--cyan);">👤 ${e(d.note || '')}</div>`;
+    }
+    function renderHumanConfirm(d) {
+      const conf = d.confidence ?? 0;
+      return `<div style="display:flex;flex-direction:column;gap:8px;">
+    <div style="font-size:13px;color:var(--green);">✅ ${e(d.note || '')}</div>
+    ${conf ? `<div class="confidence-row">
+      <span class="conf-label">Confidence</span>
+      <div class="conf-track"><div class="conf-fill" style="width:${conf * 100}%;background:${confColor(conf)}"></div></div>
+      <span class="conf-val" style="color:${confColor(conf)}">${Math.round(conf * 100)}%</span>
+    </div>` : ''}
+  </div>`;
+    }
+    function bodyHTML(step, detail) {
+      switch (step) {
+        case 'route': return renderRoute(detail);
+        case 'draft': return renderDraft(detail);
+        case 'review': return renderReview(detail);
+        case 'reroute': return renderReroute(detail);
+        case 'escalate': return renderEscalate(detail);
+        case 'human': return renderHuman(detail);
+        case 'human_confirm': return renderHumanConfirm(detail);
+        default: return `<pre style="font-size:11px;font-family:monospace;color:var(--text-secondary)">${e(JSON.stringify(detail, null, 2))}</pre>`;
+      }
+    }
+
+    /* ── Toggle step ── */
+    window.toggleStep = function (id) {
+      const b = document.getElementById('b' + id);
+      const i = document.getElementById('i' + id);
+      if (!b) return;
+      const open = b.classList.toggle('open');
+      if (i) i.classList.toggle('open', open);
+    };
+
+    /* ── Render ── */
+    function renderResult(data) {
+      const m = data.metrics || {};
+      const od = outcomeInfo(data.outcome);
+
+      document.getElementById('m-outcome').textContent = od.label;
+      document.getElementById('m-outcome').style.color = od.color;
+      document.getElementById('m-confidence').textContent = Math.round((data.confidence ?? 0) * 100) + '%';
+      document.getElementById('m-confidence').style.color = confColor(data.confidence ?? 0);
+      document.getElementById('m-retries').textContent = m.retries ?? data.retries ?? '—';
+      document.getElementById('m-steps').textContent = m.steps ?? '—';
+
+      const autoFrac = m.auto_completed ? 100 : 0;
+      document.getElementById('autocomplete-bar').style.width = autoFrac + '%';
+      document.getElementById('bar-pcts').textContent = m.auto_completed
+        ? '100% Auto-completed' : (m.escalated_to_human ? '0% — Escalated to Human' : '0% — Routed to Human');
+      document.getElementById('bar-pcts').style.color = m.auto_completed ? 'var(--green)' : 'var(--red)';
+
+      let traceHtml = '';
+      const autoOpen = new Set(['route', 'escalate', 'human', 'human_confirm']);
+      (data.trace || []).forEach((step, idx) => {
+        const open = autoOpen.has(step.step) || idx === 0;
+        traceHtml += `
+      <div class="trace-step" style="--idx:${idx}">
+        <div class="step-connector">
+          <div class="step-dot ${dotClass(step.step, step.detail)}">${stepIcon(step.step, step.detail)}</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-card-wrap">
+          <div class="step-card ${cardExtra(step.step)}">
+            <div class="step-header" onclick="toggleStep(${idx})">
+              <div class="step-title">
+                <span class="step-chip ${chipCls(step.step, step.detail)}">${chipLbl(step.step, step.detail)}</span>
+                ${e(step.title)}
+              </div>
+              <div class="step-toggle ${open ? 'open' : ''}" id="i${idx}">▾</div>
+            </div>
+            <div class="step-body ${open ? 'open' : ''}" id="b${idx}">
+              ${bodyHTML(step.step, step.detail)}
+            </div>
+          </div>
+        </div>
+      </div>`;
+      });
+
+      const sideHtml = `
+    <div class="panel">
+      <div class="panel-header">Task</div>
+      <div class="panel-body">
+        <div class="task-text">${e(data.task || '')}</div>
+        <div class="task-meta">
+          <div class="task-meta-row"><span class="task-meta-key">Task ID</span><span class="tag-id">${e(data.task_id || '—')}</span></div>
+          <div class="task-meta-row"><span class="task-meta-key">Route</span><span class="route-tag ${e(data.route || '')}" style="font-size:10px;">${e((data.route || '').replace('_', ' '))}</span></div>
+          <div class="task-meta-row"><span class="task-meta-key">Steps</span><span class="task-meta-val">${m.steps ?? '—'}</span></div>
+          <div class="task-meta-row"><span class="task-meta-key">Retries</span><span class="task-meta-val">${m.retries ?? '—'}</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">Outcome</div>
+      <div class="panel-body">
+        <div class="outcome-display">
+          <div class="outcome-icon">${od.icon}</div>
+          <div class="outcome-label" style="color:${od.color}">${od.label}</div>
+          <div class="outcome-sub">${od.sub}</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">Final Output</div>
+      <div class="panel-body"><div class="final-text">${e(data.final_output || '—')}</div></div>
+    </div>`;
+
+      document.getElementById('canvas').innerHTML =
+        `<div class="trace-panel">${traceHtml}</div><div class="sidebar">${sideHtml}</div>`;
+    }
+
+    /* ── Scenario loader ── */
+    window.loadScenario = function (name) {
+      document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-' + name);
+      if (btn) btn.classList.add('active');
+      document.getElementById('live-bar').classList.remove('visible');
+      hideError();
+      const data = SAMPLES[name];
+      if (!data) { showError("Scenario '" + name + "' not found."); return; }
+      renderResult(data);
+    };
+
+    window.toggleLive = function () {
+      document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-live').classList.add('active');
+      document.getElementById('live-bar').classList.add('visible');
+      hideError();
+      document.getElementById('canvas').innerHTML =
+        `<div class="empty-state">Enter a task above and click <strong>Run &rarr;</strong> to POST to <code>http://localhost:8000/run</code>.</div>`;
+    };
+
+    window.runLive = async function () {
+      const task = document.getElementById('live-task').value.trim();
+      if (!task) { showError('Please enter a task description.'); return; }
+      const risk = document.getElementById('live-risk').value;
+      const exposure = document.getElementById('live-exposure').value;
+      document.getElementById('live-run').disabled = true;
+      hideError();
+      document.getElementById('canvas').innerHTML =
+        `<div class="empty-state" style="grid-column:1/-1"><div style="width:36px;height:36px;border:3px solid rgba(59,130,246,.2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 16px"></div>Running...</div>
+     <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
+      try {
+        const r = await fetch('http://localhost:8000/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task: { text: task, risk, exposure, reversibility: 'unknown' } })
+        });
+        if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || 'HTTP ' + r.status); }
+        renderResult(await r.json());
+      } catch (err) {
+        showError('Failed to reach http://localhost:8000 — is the server running? (' + err.message + ')');
+        document.getElementById('canvas').innerHTML = '';
+      } finally {
+        document.getElementById('live-run').disabled = false;
+      }
+    };
+
+    function showError(msg) {
+      const el = document.getElementById('error-toast');
+      el.textContent = '⚠ ' + msg; el.classList.add('visible');
+    }
+    function hideError() {
+      document.getElementById('error-toast').classList.remove('visible');
+    }
+
+    /* Boot: load the climax scenario by default */
+    document.addEventListener('DOMContentLoaded', () => loadScenario('escalate'));
+  </script>
+</body>
+
+</html>

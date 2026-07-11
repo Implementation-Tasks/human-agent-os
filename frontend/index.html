@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Human Agent OS — Dispatch Console</title>
+<meta name="description" content="Human Agent OS: AI-powered task routing with human accountability. Router → Dual Reviewer → Escalation pipeline with live trace visualization." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ===== DESIGN TOKENS ===== */
+:root {
+  --bg:          #080B12;
+  --bg-deep:     #050710;
+  --surface:     #0F1219;
+  --surface-2:   #141820;
+  --surface-3:   #1B2130;
+  --border:      #252D3F;
+  --border-glow: #2A3650;
+
+  --ink:         #EDF0F7;
+  --ink-2:       #9BA3B8;
+  --ink-3:       #5A637A;
+
+  --teal:        #2DD4BF;
+  --teal-dim:    rgba(45, 212, 191, 0.12);
+  --teal-glow:   rgba(45, 212, 191, 0.25);
+  --amber:       #F5A623;
+  --amber-dim:   rgba(245, 166, 35, 0.12);
+  --amber-glow:  rgba(245, 166, 35, 0.25);
+  --red:         #FF5F57;
+  --red-dim:     rgba(255, 95, 87, 0.12);
+  --violet:      #A78BFA;
+  --violet-dim:  rgba(167, 139, 250, 0.12);
+  --blue:        #60A5FA;
+  --blue-dim:    rgba(96, 165, 250, 0.12);
+
+  --mono:    'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  --display: 'Space Grotesk', system-ui, sans-serif;
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+}
+
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--display);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-glow); }
+
+/* ===== LAYOUT ===== */
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ===== TOPBAR ===== */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 24px;
+  height: 56px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.topbar::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--teal-glow), transparent);
+  opacity: 0.5;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--teal), #0EA5E9);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 20px rgba(45,212,191,0.35);
+  flex-shrink: 0;
+}
+
+.logo-mark svg { width: 14px; height: 14px; }
+
+.logo-text {
+  display: flex; flex-direction: column; gap: 1px;
+}
+
+.logo-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.logo-sub {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 1;
+}
+
+.topbar-metrics {
+  display: flex;
+  gap: 20px;
+  margin-left: 28px;
+}
+
+.metric-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+}
+
+.metric-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-val {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal);
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.health-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  position: relative;
+}
+
+.health-dot.online {
+  background: var(--teal);
+  box-shadow: 0 0 8px var(--teal-glow);
+  animation: pulse-dot 2s ease infinite;
+}
+
+.health-dot.offline { background: var(--red); }
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 8px var(--teal-glow); }
+  50% { box-shadow: 0 0 16px var(--teal-glow), 0 0 24px rgba(45,212,191,0.15); }
+}
+
+.health-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* Trace viewer link — opens trace_viz.html */
+.trace-viewer-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--violet-dim);
+  border: 1px solid rgba(167,139,250,0.25);
+  border-radius: 99px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--violet);
+  text-decoration: none;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  transition: background 0.2s, border-color 0.2s;
+}
+.trace-viewer-link:hover {
+  background: rgba(167,139,250,0.2);
+  border-color: var(--violet);
+}
+
+/* ===== MAIN CONTENT ===== */
+.main {
+  display: grid;
+  grid-template-columns: 380px 1fr 300px;
+  overflow: hidden;
+  height: 100%;
+}
+
+/* ===== PANEL SHARED ===== */
+.panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+
+.panel:last-child { border-right: none; }
+
+.panel-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  background: var(--surface);
+}
+
+.panel-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* ===== LEFT PANEL — DISPATCH ===== */
+.dispatch-panel { background: var(--surface); }
+
+.intake-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.field-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin-bottom: 8px;
+  display: block;
+}
+
+textarea, select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  line-height: 1.5;
+}
+
+textarea:focus, select:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-dim);
+}
+
+textarea { min-height: 90px; }
+
+.risk-hint-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.risk-hint-row select {
+  flex: 1;
+  min-height: 36px;
+  font-size: 12px;
+}
+
+.dispatch-btn {
+  width: 100%;
+  padding: 11px 16px;
+  background: linear-gradient(135deg, var(--teal), #0EA5E9);
+  color: #030F0E;
+  border: none;
+  border-radius: var(--r-sm);
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: filter 0.15s, transform 0.1s;
+  position: relative;
+  overflow: hidden;
+}
+
+.dispatch-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
+}
+
+.dispatch-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+.dispatch-btn:active:not(:disabled) { transform: translateY(0); }
+.dispatch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.presets-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin-bottom: 8px;
+}
+
+.preset-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preset-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+
+.preset-item:hover { border-color: var(--teal); background: var(--surface-3); }
+
+.preset-icon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.preset-icon.low { background: var(--teal-dim); }
+.preset-icon.mid { background: var(--amber-dim); }
+.preset-icon.high { background: var(--red-dim); }
+
+.preset-info { flex: 1; min-width: 0; }
+
+.preset-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+
+.preset-desc {
+  font-size: 11px;
+  color: var(--ink-3);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.preset-badge.agent { background: var(--teal-dim); color: var(--teal); }
+.preset-badge.mixed { background: var(--amber-dim); color: var(--amber); }
+.preset-badge.human { background: var(--red-dim); color: var(--red); }
+
+.section-gap { margin-top: 16px; }
+
+/* ===== MIDDLE PANEL — LIVE TRACE ===== */
+.trace-panel { background: var(--bg-deep); }
+
+.trace-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+}
+
+.trace-empty-icon {
+  font-size: 36px;
+  opacity: 0.4;
+}
+
+/* Pipeline visualization */
+.pipeline-vis {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.pipe-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.pipe-node + .pipe-node::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 11px;
+  width: 32px;
+  height: 1px;
+  background: var(--border);
+  z-index: 0;
+}
+
+.pipe-node.active + .pipe-node::before { background: var(--teal); }
+
+.pipe-dot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  position: relative;
+  z-index: 1;
+  transition: all 0.3s;
+}
+
+.pipe-dot.active {
+  border-color: var(--teal);
+  background: var(--teal-dim);
+  box-shadow: 0 0 10px var(--teal-glow);
+}
+
+.pipe-dot.pass { border-color: var(--teal); background: var(--teal-dim); }
+.pipe-dot.fail { border-color: var(--red); background: var(--red-dim); }
+.pipe-dot.human { border-color: var(--amber); background: var(--amber-dim); }
+
+.pipe-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.pipe-connector {
+  width: 32px;
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: background 0.3s;
+  align-self: flex-start;
+  margin-top: 12px;
+}
+
+.pipe-connector.active { background: var(--teal); }
+
+/* Trace steps */
+.trace-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trace-step {
+  animation: step-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes step-enter {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.step-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.step-card:hover { border-color: var(--border-glow); }
+
+.step-card.kind-router { border-left: 3px solid var(--blue); }
+.step-card.kind-agent { border-left: 3px solid var(--teal); }
+.step-card.kind-reviewer-quality.pass { border-left: 3px solid var(--teal); }
+.step-card.kind-reviewer-quality.fail { border-left: 3px solid var(--red); }
+.step-card.kind-reviewer-compliance.pass { border-left: 3px solid var(--violet); }
+.step-card.kind-reviewer-compliance.fail { border-left: 3px solid var(--red); }
+.step-card.kind-escalation { border-left: 3px solid var(--red); }
+
+.step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface-2);
+}
+
+.step-name {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-name-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.kind-router .step-name-dot { background: var(--blue); }
+.kind-agent .step-name-dot { background: var(--teal); }
+.kind-reviewer-quality .step-name-dot { background: var(--violet); }
+.kind-reviewer-compliance .step-name-dot { background: var(--violet); }
+.kind-escalation .step-name-dot { background: var(--red); }
+
+.step-badges { display: flex; gap: 6px; align-items: center; }
+
+.badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 3px 7px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.badge.route-agent_only { background: var(--teal-dim); color: var(--teal); }
+.badge.route-human_only { background: var(--amber-dim); color: var(--amber); }
+.badge.route-mixed { background: var(--blue-dim); color: var(--blue); }
+.badge.route-escalated_to_human { background: var(--red-dim); color: var(--red); }
+.badge.pass { background: var(--teal-dim); color: var(--teal); }
+.badge.fail { background: var(--red-dim); color: var(--red); }
+.badge.fallback { background: var(--amber-dim); color: var(--amber); }
+.badge.compliance { background: var(--violet-dim); color: var(--violet); }
+.badge.quality { background: var(--blue-dim); color: var(--blue); }
+
+.step-time {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-3);
+}
+
+.step-body { padding: 10px 14px; }
+
+.step-reasoning {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+.step-approach {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  margin-top: 5px;
+  font-style: italic;
+}
+
+.issues-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.issue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+  line-height: 1.4;
+}
+
+.issue-item::before {
+  content: '→';
+  color: var(--red);
+  font-family: var(--mono);
+  flex-shrink: 0;
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.confidence-bar {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.confidence-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.confidence-track {
+  flex: 1;
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--teal);
+  transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.confidence-fill.low { background: var(--red); }
+.confidence-fill.mid { background: var(--amber); }
+
+.confidence-pct {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-2);
+  min-width: 28px;
+  text-align: right;
+}
+
+.risk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.risk-chip {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: var(--red-dim);
+  color: var(--red);
+  border: 1px solid rgba(255,95,87,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Risk score bar */
+.risk-score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.risk-track {
+  flex: 1;
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.risk-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ===== FINAL OUTPUT CARD ===== */
+.final-card {
+  border-radius: var(--r-lg);
+  padding: 16px;
+  border: 1px solid var(--border);
+  animation: step-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.final-card.success { 
+  background: linear-gradient(160deg, rgba(45,212,191,0.06), transparent);
+  border-color: rgba(45,212,191,0.25);
+}
+
+.final-card.human {
+  background: linear-gradient(160deg, rgba(245,166,35,0.07), transparent);
+  border-color: rgba(245,166,35,0.25);
+}
+
+.final-card.escalated {
+  background: linear-gradient(160deg, rgba(255,95,87,0.07), transparent);
+  border-color: rgba(255,95,87,0.25);
+}
+
+.final-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.final-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-3);
+}
+
+.final-output {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.human-action-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.approve-btn {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--amber), #F97316);
+  color: #1A0A00;
+  border: none;
+  border-radius: var(--r-sm);
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+
+.approve-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.approve-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.reject-btn {
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--red);
+  border: 1px solid rgba(255,95,87,0.3);
+  border-radius: var(--r-sm);
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.reject-btn:hover:not(:disabled) { background: var(--red-dim); border-color: var(--red); }
+.reject-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.approved-banner {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--teal);
+  background: var(--teal-dim);
+  border: 1px solid rgba(45,212,191,0.25);
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.rejected-banner {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--red);
+  background: var(--red-dim);
+  border: 1px solid rgba(255,95,87,0.25);
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== TYPING INDICATOR ===== */
+.thinking-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  animation: step-enter 0.3s ease both;
+}
+
+.thinking-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.dots {
+  display: flex; gap: 3px;
+}
+
+.dots span {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--teal);
+  animation: dot-bounce 1.2s infinite;
+}
+
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; }
+  40% { transform: scale(1.1); opacity: 1; }
+}
+
+/* ===== RIGHT PANEL — HISTORY ===== */
+.history-panel { background: var(--surface); }
+
+.history-empty {
+  text-align: center;
+  padding: 30px 16px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.history-item {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.history-item:hover { border-color: var(--teal); background: var(--surface-3); }
+.history-item.selected { border-color: var(--teal); background: var(--surface-3); }
+
+.history-task {
+  font-size: 12px;
+  color: var(--ink);
+  margin-bottom: 5px;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.history-route {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.history-route.agent_only { background: var(--teal-dim); color: var(--teal); }
+.history-route.human_only { background: var(--amber-dim); color: var(--amber); }
+.history-route.mixed { background: var(--blue-dim); color: var(--blue); }
+.history-route.escalated_to_human { background: var(--red-dim); color: var(--red); }
+.history-route.human_approved { background: var(--teal-dim); color: var(--teal); }
+.history-route.human_rejected { background: var(--red-dim); color: var(--red); }
+
+.history-time {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-3);
+}
+
+.history-stats {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.history-stat {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-3);
+}
+
+/* ===== CONFIG WARNING ===== */
+.config-bar {
+  display: none;
+  padding: 8px 18px;
+  background: rgba(245,166,35,0.08);
+  border-bottom: 1px solid rgba(245,166,35,0.2);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--amber);
+  align-items: center;
+  gap: 8px;
+}
+
+/* ===== MOBILE FALLBACK ===== */
+@media (max-width: 900px) {
+  .main {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+  .history-panel { display: none; }
+  .topbar-metrics { display: none; }
+}
+
+/* ===== UTILITIES ===== */
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="7" cy="4" r="2" fill="white"/>
+          <circle cx="3" cy="10" r="1.5" fill="white" opacity="0.6"/>
+          <circle cx="11" cy="10" r="1.5" fill="white" opacity="0.6"/>
+          <line x1="7" y1="6" x2="3" y2="8.5" stroke="white" stroke-width="1" opacity="0.5"/>
+          <line x1="7" y1="6" x2="11" y2="8.5" stroke="white" stroke-width="1" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <div class="logo-title">Human Agent OS</div>
+        <div class="logo-sub">Dispatch Console · Founder Mode Track</div>
+      </div>
+    </div>
+    <div class="topbar-metrics" id="topbarMetrics">
+      <div class="metric-pill">
+        <span class="metric-label">Tasks</span>
+        <span class="metric-val" id="metricTotal">0</span>
+      </div>
+      <div class="metric-pill">
+        <span class="metric-label">Escalation</span>
+        <span class="metric-val" id="metricEscalation">0%</span>
+      </div>
+      <div class="metric-pill">
+        <span class="metric-label">Avg Confidence</span>
+        <span class="metric-val" id="metricConfidence">—</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <a href="trace_viz.html" target="_blank" class="trace-viewer-link" title="Open offline Accountability Trace Viewer">🔍 Trace Viewer →</a>
+      <div class="health-dot" id="healthDot"></div>
+      <span class="health-text" id="healthText">connecting…</span>
+    </div>
+  </header>
+
+  <!-- CONFIG WARNING BAR -->
+  <div class="config-bar" id="configBar">
+    ⚠ No ANTHROPIC_API_KEY set — pipeline runs in fallback mode. Set key in backend/.env for live AI calls.
+  </div>
+
+  <!-- MAIN 3-COLUMN -->
+  <div class="main">
+
+    <!-- LEFT: DISPATCH PANEL -->
+    <div class="panel dispatch-panel">
+      <div class="panel-header">
+        <span class="panel-title">Dispatch</span>
+        <span class="badge route-agent_only" id="dispatchStatus" style="font-size:9px;">Ready</span>
+      </div>
+      <div class="panel-body">
+        <!-- Task Input -->
+        <div class="intake-card">
+          <label class="field-label" for="taskInput">Task description</label>
+          <textarea
+            id="taskInput"
+            placeholder="Describe the task to route… e.g. Draft a reply to a customer disputing a $180 charge."
+          ></textarea>
+          <div class="risk-hint-row">
+            <select id="riskHint" title="Risk level hint">
+              <option value="">Risk level: auto-detect</option>
+              <option value="low risk, reversible">Low risk · reversible</option>
+              <option value="medium risk, some financial exposure">Medium · financial exposure</option>
+              <option value="high risk, legal or financial sensitivity">High · legal/financial</option>
+              <option value="critical, irreversible action">Critical · irreversible</option>
+            </select>
+          </div>
+          <button class="dispatch-btn" id="submitBtn" onclick="dispatch()">
+            Dispatch task →
+          </button>
+        </div>
+
+        <!-- Presets -->
+        <div class="section-gap">
+          <div class="presets-title">Demo scenarios</div>
+          <div class="preset-grid">
+            <button class="preset-item" onclick="loadPreset('low')">
+              <div class="preset-icon low">🤖</div>
+              <div class="preset-info">
+                <div class="preset-name">Low-risk · Agent-only</div>
+                <div class="preset-desc">Meeting transcript → bullet action items</div>
+              </div>
+              <span class="preset-badge agent">Agent</span>
+            </button>
+            <button class="preset-item" onclick="loadPreset('borderline')">
+              <div class="preset-icon mid">⚖️</div>
+              <div class="preset-info">
+                <div class="preset-name">Borderline · Mixed path</div>
+                <div class="preset-desc">Customer dispute reply + refund offer</div>
+              </div>
+              <span class="preset-badge mixed">Mixed</span>
+            </button>
+            <button class="preset-item" onclick="loadPreset('high')">
+              <div class="preset-icon high">🔒</div>
+              <div class="preset-info">
+                <div class="preset-name">High-risk · Human-only</div>
+                <div class="preset-desc">$45,000 wire transfer approval</div>
+              </div>
+              <span class="preset-badge human">Human</span>
+            </button>
+            <button class="preset-item" onclick="loadPreset('compliance')">
+              <div class="preset-icon mid">📋</div>
+              <div class="preset-info">
+                <div class="preset-name">Compliance · Dual review</div>
+                <div class="preset-desc">GDPR data deletion response draft</div>
+              </div>
+              <span class="preset-badge mixed">Mixed</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MIDDLE: LIVE TRACE PANEL -->
+    <div class="panel trace-panel" style="border-right: 1px solid var(--border);">
+      <div class="panel-header">
+        <span class="panel-title">Live Trace</span>
+        <span class="health-text" id="traceStatus">—</span>
+      </div>
+
+      <!-- Pipeline visualization bar -->
+      <div class="pipeline-vis" id="pipelineVis" style="display:none;">
+        <div class="pipe-node" id="pipe-router">
+          <div class="pipe-dot" id="dot-router">🔀</div>
+          <div class="pipe-label">Router</div>
+        </div>
+        <div class="pipe-connector" id="conn-agent"></div>
+        <div class="pipe-node" id="pipe-agent">
+          <div class="pipe-dot" id="dot-agent">🤖</div>
+          <div class="pipe-label">Agent</div>
+        </div>
+        <div class="pipe-connector" id="conn-qrev"></div>
+        <div class="pipe-node" id="pipe-qrev">
+          <div class="pipe-dot" id="dot-qrev">🔍</div>
+          <div class="pipe-label">Quality</div>
+        </div>
+        <div class="pipe-connector" id="conn-crev"></div>
+        <div class="pipe-node" id="pipe-crev">
+          <div class="pipe-dot" id="dot-crev">⚖️</div>
+          <div class="pipe-label">Compliance</div>
+        </div>
+        <div class="pipe-connector" id="conn-output"></div>
+        <div class="pipe-node" id="pipe-output">
+          <div class="pipe-dot" id="dot-output">✓</div>
+          <div class="pipe-label">Output</div>
+        </div>
+      </div>
+
+      <!-- Step stream -->
+      <div class="trace-body" id="traceBody">
+        <div class="trace-empty" id="traceEmpty">
+          <div class="trace-empty-icon">⬡</div>
+          <div>No task dispatched yet</div>
+          <div style="font-size:10px; margin-top:4px; opacity:0.6;">Pick a scenario above or write your own</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: HISTORY PANEL -->
+    <div class="panel history-panel">
+      <div class="panel-header">
+        <span class="panel-title">Task History</span>
+        <span class="metric-label" id="historyCount">0 tasks</span>
+      </div>
+      <div class="panel-body" id="historyBody">
+        <div class="history-empty" id="historyEmpty">No tasks yet</div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const API_BASE = window.HAOS_API_BASE || 'http://localhost:8787';
+
+const PRESETS = {
+  low: {
+    task: 'Summarize this internal Q2 planning meeting transcript into exactly 5 bullet action items. Assign no owners — just the actions themselves.',
+    risk: '',
+  },
+  borderline: {
+    task: 'Draft a professional email reply to a customer who is disputing a $180 charge on their invoice. Acknowledge the issue, offer a 50% goodwill credit, and explain our refund policy. The email will go out under our brand.',
+    risk: 'medium risk, some financial exposure',
+  },
+  high: {
+    task: 'Approve and initiate a $45,000 wire transfer to a new vendor bank account (First National Bank, routing 021000021, account 9876543210) submitted by procurement this morning for a software license.',
+    risk: 'high risk, legal or financial sensitivity',
+  },
+  compliance: {
+    task: 'Draft a response to a customer exercising their GDPR "right to erasure" (right to be forgotten). The customer wants all their personal data deleted from our systems. This response will be sent directly to the customer.',
+    risk: 'high risk, legal or financial sensitivity',
+  },
+};
+
+// ============================================================
+// DOM REFS
+// ============================================================
+const taskInput   = document.getElementById('taskInput');
+const riskHint    = document.getElementById('riskHint');
+const submitBtn   = document.getElementById('submitBtn');
+const traceBody   = document.getElementById('traceBody');
+const traceEmpty  = document.getElementById('traceEmpty');
+const traceStatus = document.getElementById('traceStatus');
+const historyBody = document.getElementById('historyBody');
+const historyCount= document.getElementById('historyCount');
+const historyEmpty= document.getElementById('historyEmpty');
+const pipelineVis = document.getElementById('pipelineVis');
+const configBar   = document.getElementById('configBar');
+
+// ============================================================
+// HEALTH CHECK
+// ============================================================
+async function checkHealth() {
+  try {
+    const res = await fetch(`${API_BASE}/api/health`);
+    const d = await res.json();
+    document.getElementById('healthDot').className = 'health-dot online';
+    document.getElementById('healthText').textContent = `${d.model}`;
+    if (!d.hasApiKey) configBar.style.display = 'flex';
+    else configBar.style.display = 'none';
+  } catch {
+    document.getElementById('healthDot').className = 'health-dot offline';
+    document.getElementById('healthText').textContent = 'backend offline';
+  }
+}
+checkHealth();
+
+async function fetchMetrics() {
+  try {
+    const res = await fetch(`${API_BASE}/api/metrics`);
+    const m = await res.json();
+    document.getElementById('metricTotal').textContent = m.totalTasks;
+    document.getElementById('metricEscalation').textContent = m.escalationRate + '%';
+    document.getElementById('metricConfidence').textContent =
+      m.avgConfidence > 0 ? (m.avgConfidence * 100).toFixed(0) + '%' : '—';
+  } catch {}
+}
+
+// ============================================================
+// PRESET LOADER
+// ============================================================
+function loadPreset(key) {
+  const p = PRESETS[key];
+  if (!p) return;
+  taskInput.value = p.task;
+  riskHint.value  = p.risk || '';
+}
+
+// ============================================================
+// PIPELINE VIS HELPERS
+// ============================================================
+function resetPipeline() {
+  ['router','agent','qrev','crev','output'].forEach(id => {
+    const d = document.getElementById(`dot-${id}`);
+    if (d) { d.className = 'pipe-dot'; }
+  });
+  ['agent','qrev','crev','output'].forEach(id => {
+    const c = document.getElementById(`conn-${id}`);
+    if (c) c.className = 'pipe-connector';
+  });
+  pipelineVis.style.display = 'flex';
+}
+
+function activatePipeNode(nodeId, state = 'active') {
+  const d = document.getElementById(`dot-${nodeId}`);
+  if (d) d.className = `pipe-dot ${state}`;
+  // Activate preceding connector
+  const connMap = { agent:'agent', qrev:'qrev', crev:'crev', output:'output' };
+  const connId = connMap[nodeId];
+  if (connId) {
+    const c = document.getElementById(`conn-${connId}`);
+    if (c) c.className = 'pipe-connector active';
+  }
+}
+
+// ============================================================
+// STEP RENDERERS
+// ============================================================
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
+  );
+}
+
+function routeLabel(r) {
+  return {
+    human_only:'Human Only', agent_only:'Agent Only',
+    mixed:'Mixed', escalated_to_human:'Escalated → Human',
+  }[r] || r;
+}
+
+function confidenceClass(c) {
+  if (c < 0.4) return 'low';
+  if (c < 0.7) return 'mid';
+  return '';
+}
+
+function riskColor(score) {
+  if (score >= 8) return '#FF5F57';
+  if (score >= 5) return '#F5A623';
+  return '#2DD4BF';
+}
+
+function renderRouter(step, idx) {
+  const delay = idx * 0.08;
+  const el = document.createElement('div');
+  el.className = 'trace-step';
+  el.style.animationDelay = `${delay}s`;
+  const riskW = ((step.riskScore || 5) / 10 * 100).toFixed(0);
+  const riskC = riskColor(step.riskScore || 5);
+  el.innerHTML = `
+    <div class="step-card kind-router">
+      <div class="step-head">
+        <span class="step-name">
+          <span class="step-name-dot"></span>
+          Router
+        </span>
+        <div class="step-badges">
+          <span class="badge route-${step.route}">${routeLabel(step.route)}</span>
+          ${step.fallback ? '<span class="badge fallback">fallback</span>' : ''}
+          <span class="step-time">${step.timestamp}ms</span>
+        </div>
+      </div>
+      <div class="step-body">
+        <div class="step-reasoning">${esc(step.reasoning)}</div>
+        <div class="risk-score-row">
+          <span class="confidence-label">Risk ${step.riskScore || '?'}/10</span>
+          <div class="risk-track">
+            <div class="risk-fill" style="width:${riskW}%;background:${riskC};"></div>
+          </div>
+          ${step.riskCategory ? `<span class="badge" style="background:rgba(255,95,87,0.1);color:var(--red);font-size:8px;">${esc(step.riskCategory)}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  return el;
+}
+
+function renderAgent(step, idx) {
+  const el = document.createElement('div');
+  el.className = 'trace-step';
+  el.style.animationDelay = `${idx * 0.08}s`;
+  el.innerHTML = `
+    <div class="step-card kind-agent">
+      <div class="step-head">
+        <span class="step-name">
+          <span class="step-name-dot"></span>
+          Agent · Attempt ${step.attempt}
+        </span>
+        <div class="step-badges">
+          ${step.fallback ? '<span class="badge fallback">unavailable</span>' : ''}
+          <span class="step-time">${step.timestamp}ms</span>
+        </div>
+      </div>
+      <div class="step-body">
+        <div class="step-reasoning">${esc(step.output || '(no output — API unavailable)')}</div>
+        ${step.approach ? `<div class="step-approach">Approach: ${esc(step.approach)}</div>` : ''}
+      </div>
+    </div>`;
+  return el;
+}
+
+function renderReviewer(step, idx) {
+  const isQuality = step.reviewType === 'quality';
+  const cls = isQuality ? 'kind-reviewer-quality' : 'kind-reviewer-compliance';
+  const passClass = step.pass ? 'pass' : 'fail';
+  const pct = (step.confidence * 100).toFixed(0);
+  const cfClass = confidenceClass(step.confidence);
+
+  const issuesHtml = (step.issues || []).length
+    ? `<div class="issues-list">${step.issues.map(i => `<div class="issue-item">${esc(i)}</div>`).join('')}</div>`
+    : '';
+
+  const flagsHtml = (step.riskFlags || []).filter(f => f && f !== 'none').length
+    ? `<div class="risk-chips">${step.riskFlags.filter(f=>f&&f!=='none').map(f=>`<span class="risk-chip">${esc(f)}</span>`).join('')}</div>`
+    : '';
+
+  const el = document.createElement('div');
+  el.className = 'trace-step';
+  el.style.animationDelay = `${idx * 0.08}s`;
+  el.innerHTML = `
+    <div class="step-card ${cls} ${passClass}">
+      <div class="step-head">
+        <span class="step-name">
+          <span class="step-name-dot"></span>
+          ${isQuality ? 'Quality' : 'Compliance'} Reviewer · Check ${step.attempt}
+        </span>
+        <div class="step-badges">
+          <span class="badge ${isQuality ? 'quality' : 'compliance'}">${isQuality ? 'Quality' : 'Compliance'}</span>
+          <span class="badge ${passClass}">${step.pass ? 'Pass' : 'Rejected'}</span>
+          <span class="step-time">${step.timestamp}ms</span>
+        </div>
+      </div>
+      <div class="step-body">
+        ${step.summary ? `<div class="step-reasoning">${esc(step.summary)}</div>` : ''}
+        <div class="confidence-bar">
+          <span class="confidence-label">Confidence</span>
+          <div class="confidence-track">
+            <div class="confidence-fill ${cfClass}" style="width:${pct}%"></div>
+          </div>
+          <span class="confidence-pct">${pct}%</span>
+        </div>
+        ${issuesHtml}
+        ${flagsHtml}
+      </div>
+    </div>`;
+  return el;
+}
+
+function renderEscalation(step, idx) {
+  const el = document.createElement('div');
+  el.className = 'trace-step';
+  el.style.animationDelay = `${idx * 0.08}s`;
+  const issuesHtml = (step.issues || []).length
+    ? `<div class="issues-list">${step.issues.map(i => `<div class="issue-item">${esc(i)}</div>`).join('')}</div>`
+    : '';
+  el.innerHTML = `
+    <div class="step-card kind-escalation">
+      <div class="step-head">
+        <span class="step-name">
+          <span class="step-name-dot"></span>
+          Escalation → Human Accountability Chain
+        </span>
+        <span class="step-time">${step.timestamp}ms</span>
+      </div>
+      <div class="step-body">
+        <div class="step-reasoning">${esc(step.reason)}</div>
+        ${issuesHtml}
+      </div>
+    </div>`;
+  return el;
+}
+
+function renderThinking(label) {
+  const el = document.createElement('div');
+  el.className = 'thinking-step';
+  el.id = 'thinkingIndicator';
+  el.innerHTML = `
+    <div class="dots">
+      <span></span><span></span><span></span>
+    </div>
+    <span class="thinking-text">${esc(label)}</span>`;
+  return el;
+}
+
+function removeThinking() {
+  const t = document.getElementById('thinkingIndicator');
+  if (t) t.remove();
+}
+
+let stepIndex = 0;
+
+function appendStep(step) {
+  removeThinking();
+  let el;
+  if (step.step === 'router')    el = renderRouter(step, stepIndex++);
+  else if (step.step === 'agent')  el = renderAgent(step, stepIndex++);
+  else if (step.step === 'reviewer') el = renderReviewer(step, stepIndex++);
+  else if (step.step === 'escalation') el = renderEscalation(step, stepIndex++);
+  else return;
+
+  traceBody.appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderFinalOutput(result) {
+  removeThinking();
+
+  let cardClass = 'success';
+  if (result.finalRoute === 'human_only') cardClass = 'human';
+  else if (result.finalRoute === 'escalated_to_human') cardClass = 'escalated';
+  else if (result.status === 'awaiting_human_signoff') cardClass = 'human';
+
+  let titleText = '';
+  let bodyText  = '';
+
+  if (result.finalRoute === 'human_only') {
+    titleText = '🔒 Routed directly to human — no AI touched this task';
+    bodyText  = 'This task requires human accountability. It is queued for a human owner to handle directly. The system made this decision to protect against AI taking on decisions with legal, financial, or irreversible consequences.';
+  } else if (result.finalRoute === 'escalated_to_human') {
+    titleText = '⚠ Escalated after failed AI review — awaiting human decision';
+    bodyText  = result.finalOutput
+      ? `Last AI draft (not verified by reviewer):\n\n${result.finalOutput}`
+      : 'No usable draft was produced before escalation.';
+  } else if (result.status === 'awaiting_human_signoff') {
+    titleText = '✅ AI draft ready — awaiting human sign-off (mixed path)';
+    bodyText  = result.finalOutput || '';
+  } else {
+    titleText = '✅ Completed autonomously — dual review passed';
+    bodyText  = result.finalOutput || '';
+  }
+
+  const needsHuman = result.needsHuman;
+
+  const wrap = document.createElement('div');
+  wrap.className = `final-card ${cardClass}`;
+  wrap.innerHTML = `
+    <div class="final-header">
+      <div class="final-title">${esc(titleText)}</div>
+      <span class="badge route-${result.finalRoute}">${routeLabel(result.finalRoute)}</span>
+    </div>
+    <div class="final-output">${esc(bodyText)}</div>
+    ${needsHuman ? `
+      <div class="human-action-row" id="humanActions">
+        <button class="approve-btn" id="approveBtn">Approve as Human ✓</button>
+        <button class="reject-btn" id="rejectBtn">Reject & Return ✗</button>
+        <span class="approved-banner" id="approvedBanner">✓ Approved — logged to audit trail</span>
+        <span class="rejected-banner" id="rejectedBanner">✗ Rejected — task returned</span>
+      </div>` : ''}
+    <div style="margin-top:10px; font-family:var(--mono); font-size:10px; color:var(--ink-3);">
+      Total: ${result.totalMs}ms · Retries: ${result.retries || 0} · ID: ${result.taskId ? result.taskId.slice(0,8) : '—'}
+    </div>`;
+
+  traceBody.appendChild(wrap);
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  if (needsHuman) {
+    document.getElementById('approveBtn').addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      document.getElementById('rejectBtn').disabled = true;
+      try {
+        await fetch(`${API_BASE}/api/human-approve`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            taskId: result.taskId,
+            task: result.task,
+            finalOutput: result.finalOutput,
+            approvedBy: 'human_operator',
+          }),
+        });
+      } catch {}
+      const b = document.getElementById('approvedBanner');
+      b.style.display = 'flex';
+      refreshHistory();
+    });
+
+    document.getElementById('rejectBtn').addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      document.getElementById('approveBtn').disabled = true;
+      try {
+        await fetch(`${API_BASE}/api/human-reject`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ taskId: result.taskId, rejectionReason: 'Human reviewer rejected output.' }),
+        });
+      } catch {}
+      const b = document.getElementById('rejectedBanner');
+      b.style.display = 'flex';
+      refreshHistory();
+    });
+  }
+
+  // Activate output pipe node
+  activatePipeNode('output', needsHuman ? 'human' : 'pass');
+}
+
+// ============================================================
+// TASK HISTORY
+// ============================================================
+let historyList = [];
+
+function relativeTime(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m/60)}h`;
+}
+
+async function refreshHistory() {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks?limit=20`);
+    const d = await res.json();
+    historyList = d.tasks || [];
+    renderHistory();
+    historyCount.textContent = `${d.total} task${d.total !== 1 ? 's' : ''}`;
+  } catch {}
+  fetchMetrics();
+}
+
+function renderHistory() {
+  if (!historyList.length) {
+    historyEmpty.style.display = 'block';
+    return;
+  }
+  historyEmpty.style.display = 'none';
+  historyBody.innerHTML = '';
+  historyList.forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'history-item';
+    const routeCls = t.status === 'human_approved' ? 'human_approved'
+      : t.status === 'human_rejected' ? 'human_rejected'
+      : t.finalRoute || 'agent_only';
+    const routeText = t.status === 'human_approved' ? 'Approved'
+      : t.status === 'human_rejected' ? 'Rejected'
+      : routeLabel(t.finalRoute || '');
+    item.innerHTML = `
+      <div class="history-task">${esc(t.task)}</div>
+      <div class="history-meta">
+        <span class="history-route ${routeCls}">${esc(routeText)}</span>
+        <span class="history-time">${relativeTime(t.totalMs)} ago</span>
+      </div>
+      <div class="history-stats">
+        ${t.retries > 0 ? `<span class="history-stat">↺ ${t.retries} retry</span>` : ''}
+        ${t.escalated ? `<span class="history-stat" style="color:var(--red);">⬆ escalated</span>` : ''}
+        <span class="history-stat">${t.totalMs}ms</span>
+      </div>`;
+    historyBody.appendChild(item);
+  });
+}
+
+// ============================================================
+// MAIN DISPATCH — SSE streaming
+// ============================================================
+async function dispatch() {
+  const task = taskInput.value.trim();
+  if (!task) { taskInput.focus(); return; }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Dispatching…';
+  document.getElementById('dispatchStatus').textContent = 'Running';
+  document.getElementById('dispatchStatus').className = 'badge route-agent_only';
+
+  // Reset trace
+  traceBody.innerHTML = '';
+  traceEmpty.style.display = 'none';
+  traceStatus.textContent = 'Routing…';
+  stepIndex = 0;
+  resetPipeline();
+
+  // Show initial thinking
+  traceBody.appendChild(renderThinking('Router classifying task…'));
+  activatePipeNode('router', 'active');
+
+  const hint = riskHint.value || undefined;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/process/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ task, riskHint: hint }),
+    });
+
+    if (!res.ok || !res.body) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      let currentEvent = '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          const raw = line.slice(6).trim();
+          try {
+            const data = JSON.parse(raw);
+            handleSSEEvent(currentEvent, data);
+          } catch {}
+        }
+      }
+    }
+  } catch (err) {
+    // Fallback: try non-streaming endpoint
+    try {
+      const res = await fetch(`${API_BASE}/api/process`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ task, riskHint: hint }),
+      });
+      const result = await res.json();
+      removeThinking();
+      (result.steps || []).forEach(step => appendStep(step));
+      renderFinalOutput(result);
+      traceStatus.textContent = 'Complete';
+    } catch (e2) {
+      removeThinking();
+      const el = document.createElement('div');
+      el.style.cssText = 'padding:20px; text-align:center; color:var(--ink-3); font-family:var(--mono); font-size:12px;';
+      el.textContent = `Could not reach backend at ${API_BASE}. Is server.js running?`;
+      traceBody.appendChild(el);
+    }
+  }
+
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Dispatch task →';
+  document.getElementById('dispatchStatus').textContent = 'Ready';
+  refreshHistory();
+}
+
+let lastEventWasRouter = false;
+
+function handleSSEEvent(event, data) {
+  if (event === 'task_start') {
+    traceStatus.textContent = 'Router deciding…';
+    return;
+  }
+
+  if (event === 'step') {
+    appendStep(data);
+
+    if (data.step === 'router') {
+      lastEventWasRouter = true;
+      activatePipeNode('router', 'pass');
+      if (data.route === 'human_only') {
+        activatePipeNode('output', 'human');
+        traceStatus.textContent = 'Human only — no AI processing';
+      } else {
+        traceStatus.textContent = `Route: ${routeLabel(data.route)} — running agent…`;
+        traceBody.appendChild(renderThinking('Agent generating draft…'));
+        activatePipeNode('agent', 'active');
+      }
+    }
+
+    if (data.step === 'agent') {
+      activatePipeNode('agent', data.fallback ? 'fail' : 'pass');
+      if (!data.fallback) {
+        traceStatus.textContent = 'Running dual review…';
+        traceBody.appendChild(renderThinking('Quality + Compliance reviewers checking…'));
+        activatePipeNode('qrev', 'active');
+        activatePipeNode('crev', 'active');
+      }
+    }
+
+    if (data.step === 'reviewer') {
+      if (data.reviewType === 'quality') {
+        activatePipeNode('qrev', data.pass ? 'pass' : 'fail');
+      } else {
+        activatePipeNode('crev', data.pass ? 'pass' : 'fail');
+      }
+      traceStatus.textContent = `${data.reviewType === 'quality' ? 'Quality' : 'Compliance'} review: ${data.pass ? 'passed' : 'rejected'}`;
+    }
+
+    if (data.step === 'escalation') {
+      activatePipeNode('output', 'fail');
+      traceStatus.textContent = 'Escalated to human chain';
+    }
+  }
+
+  if (event === 'complete') {
+    removeThinking();
+    renderFinalOutput(data);
+    traceStatus.textContent = `Done · ${data.totalMs}ms`;
+    document.getElementById('dispatchStatus').textContent = 'Ready';
+  }
+
+  if (event === 'error') {
+    removeThinking();
+    traceStatus.textContent = `Error: ${data.message || 'unknown'}`;
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+refreshHistory();
+setInterval(refreshHistory, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+{
+  "task_id": "run_e3453966",
+  "task": "Approve a wire transfer of $2,000,000 to a new beneficiary account.",
+  "route": "human_only",
+  "outcome": "human_only",
+  "final_output": "[Awaiting human] Task routed to a human owner for completion/approval.",
+  "retries": 0,
+  "confidence": 1.0,
+  "trace": [
+    {
+      "step": "route",
+      "title": "Router decision",
+      "detail": {
+        "route": "human_only",
+        "reasoning": "Irreversible, high-value transfer to a new beneficiary; must be human-approved.",
+        "fallback": false
+      },
+      "ts": 1783812805.143
+    },
+    {
+      "step": "human",
+      "title": "Routed to a human (accountable path)",
+      "detail": {
+        "note": "High-stakes/irreversible - no AI action taken."
+      },
+      "ts": 1783812805.143
+    }
+  ],
+  "metrics": {
+    "outcome": "human_only",
+    "auto_completed": false,
+    "escalated_to_human": false,
+    "retries": 0,
+    "confidence": 1.0,
+    "steps": 2
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "scenarios": [
+    {
+      "name": "clean_pass",
+      "note": "Low-risk task -> agent_only -> reviewer passes clean.",
+      "task": {"text": "Draft a first-pass summary of this week's 42 support tickets, grouped by theme.",
+               "risk": "low", "reversibility": "high", "exposure": "low"},
+      "responses": [
+        {"route": "agent_only", "reasoning": "Low-risk, reversible, internal summarization task."},
+        "Summary of 42 tickets this week. Themes: Login/OTP (15), Payment failures (11), Feature requests (9), Bugs (7). Sentiment mostly neutral; 3 flagged urgent (payment double-charge).",
+        {"pass": true, "confidence": 0.9,
+         "scores": {"correctness": 0.9, "completeness": 0.85, "risk_safety": 0.95},
+         "issues": [],
+         "verdict_reason": "Accurate, complete grouping with no risk; safe to auto-complete."}
+      ]
+    },
+    {
+      "name": "reroute_pass",
+      "note": "Borderline task -> mixed -> reviewer catches a gap -> reroute once -> passes -> human confirms.",
+      "task": {"text": "Draft a customer response approving a refund for order #A-2231 ($200 dispute).",
+               "risk": "medium", "reversibility": "medium", "exposure": "medium"},
+      "responses": [
+        {"route": "mixed", "reasoning": "Customer-facing with money involved; agent drafts, human confirms."},
+        "Hi, thanks for reaching out. We've approved your $200 refund for order #A-2231. It'll appear in 5-7 days. Sorry for the trouble!",
+        {"pass": false, "confidence": 0.55,
+         "scores": {"correctness": 0.6, "completeness": 0.4, "risk_safety": 0.6},
+         "issues": [
+           {"dimension": "completeness", "severity": "medium",
+            "detail": "Refund approved without confirming it meets the 14-day return policy or checking prior refund history.",
+            "fix_hint": "Confirm eligibility against the return policy before approving."},
+           {"dimension": "risk_safety", "severity": "medium",
+            "detail": "Commits to a refund amount and timeline with no policy citation.",
+            "fix_hint": "Reference the refund policy and mark for human sign-off."}
+         ],
+         "verdict_reason": "Missing policy/eligibility check before committing a refund."},
+        "Hi, thanks for reaching out about order #A-2231. I've confirmed it's within our 14-day return window with no prior refunds, so you're eligible. Your $200 refund is approved and will post to your original payment method in 5-7 business days. (Pending final sign-off.)",
+        {"pass": true, "confidence": 0.86,
+         "scores": {"correctness": 0.9, "completeness": 0.85, "risk_safety": 0.85},
+         "issues": [],
+         "verdict_reason": "Eligibility confirmed and policy cited; appropriate for human confirmation on the mixed path."}
+      ]
+    },
+    {
+      "name": "escalate",
+      "note": "Agent self-corrects but the reviewer still escalates a high-exposure financial decision to a human.",
+      "task": {"text": "Reconcile two conflicting vendor invoices (INV-88 says $12,400; the PO says $9,900) and recommend a payment amount.",
+               "risk": "medium", "reversibility": "low", "exposure": "high"},
+      "responses": [
+        {"route": "agent_only", "reasoning": "Routine reconciliation; low-risk if amounts match."},
+        "Recommend paying $12,400 as invoiced by the vendor.",
+        {"pass": false, "confidence": 0.3,
+         "scores": {"correctness": 0.3, "completeness": 0.4, "risk_safety": 0.3},
+         "issues": [
+           {"dimension": "correctness", "severity": "high",
+            "detail": "Recommends paying the invoice ($12,400) over the PO ($9,900) with no reconciliation of the $2,500 discrepancy.",
+            "fix_hint": "Explain the discrepancy; do not recommend overpaying beyond the PO without approval."}
+         ],
+         "verdict_reason": "High-severity: recommends a $2,500 overpayment above the PO with no justification."},
+        "The invoice ($12,400) exceeds the PO ($9,900) by $2,500. I can't determine from the documents whether the extra covers approved scope. Recommend paying the PO amount ($9,900) and holding $2,500 pending clarification.",
+        {"pass": false, "confidence": 0.5,
+         "scores": {"correctness": 0.65, "completeness": 0.6, "risk_safety": 0.5},
+         "issues": [
+           {"dimension": "risk_safety", "severity": "high",
+            "detail": "Financial commitment with an unresolved $2,500 discrepancy and high exposure; needs human authority.",
+            "fix_hint": "Escalate to a human approver with the discrepancy summary."}
+         ],
+         "verdict_reason": "Improved, but an unresolved high-exposure payment discrepancy must be decided by a human."}
+      ]
+    },
+    {
+      "name": "human_only",
+      "note": "High-liability, irreversible task -> router sends it straight to a human; no AI touches it.",
+      "task": {"text": "Approve a wire transfer of $2,000,000 to a new beneficiary account.",
+               "risk": "high", "reversibility": "low", "exposure": "high"},
+      "responses": [
+        {"route": "human_only",
+         "reasoning": "Irreversible, high-value transfer to a new beneficiary; must be human-approved."}
+      ]
+    }
+  ]
+}

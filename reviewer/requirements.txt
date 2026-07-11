@@ -1,0 +1,2 @@
+# Only needed for LIVE mode (real LLM). Scripted mode / demo needs nothing.
+requests>=2.28
